@@ -108,7 +108,7 @@ JarvisArt is a multi-modal large language model (MLLM)-driven agent for intellig
 
 To clarify data provenance for MMArt (including the distribution summary shown in the paper):
 
-- As described in the paper, MMArt is constructed from **PPR10K**, Adobe Lightroom community assets, and licensed open-source collections.
+- As described in the paper, MMArt is constructed from **PPR10K** and other licensed open-source collections.
 - In this repository, the currently public dataset releases are:
   - [MMArt-PPR10K](https://huggingface.co/datasets/JarvisArt/MMArt-PPR10k)
   - [MMArt-Bench](https://huggingface.co/datasets/JarvisArt/MMArt-Bench)
