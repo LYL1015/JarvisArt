@@ -78,12 +78,12 @@ def calculate_global_param_matching(pred, gt):
     # More efficient filtering using list comprehension with combined conditions
     gt_keys = {k for k in gt.keys() 
                if k not in exclude_keys and 
-               k not in pp3_keys and 
+               k in pp3_keys and 
                not any(k.startswith(prefix) for prefix in excluded_prefixes)}
     
     pred_keys = {k for k in pred.keys() 
                 if k not in exclude_keys and 
-                k not in pp3_keys and 
+                k in pp3_keys and 
                 not any(k.startswith(prefix) for prefix in excluded_prefixes)}
 
     # Calculate intersection and union
@@ -112,12 +112,12 @@ def calculate_global_param_accuracy(pred, gt):
     
     gt_keys = {k for k in gt.keys() 
                if k not in exclude_keys and 
-               k not in pp3_keys and 
+               k in pp3_keys and 
                not any(k.startswith(prefix) for prefix in excluded_prefixes)}
     
     pred_keys = {k for k in pred.keys() 
                 if k not in exclude_keys and 
-                k not in pp3_keys and 
+                k in pp3_keys and 
                 not any(k.startswith(prefix) for prefix in excluded_prefixes)}
 
     # Calculate intersection
