@@ -76,6 +76,7 @@
 ## 🧭 Navigation
 
 - [Overview](#-overview)
+- [Dataset Source FAQ](#-dataset-source-faq)
 - [Demo Videos](#-demo-videos)
 - [Checklist](#-checklist)
 - [Getting Started](#-getting-started)
@@ -100,6 +101,18 @@
 </div>
 
 JarvisArt is a multi-modal large language model (MLLM)-driven agent for intelligent photo retouching. It is designed to liberate human creativity by understanding user intent, mimicking the reasoning of professional artists, and coordinating over 200 tools in Adobe Lightroom. JarvisArt utilizes a novel two-stage training framework, starting with Chain-of-Thought supervised fine-tuning for foundational reasoning, followed by Group Relative Policy Optimization for Retouching (GRPO-R) to enhance its decision-making and tool proficiency. Supported by the newly created MMArt dataset (55K samples) and MMArt-Bench, JarvisArt demonstrates superior performance, outperforming GPT-4o with a 60% improvement in pixel-level metrics for content fidelity while maintaining comparable instruction-following capabilities.
+
+---
+
+## 📦 Dataset Source FAQ
+
+To clarify data provenance for MMArt (including the distribution summary shown in the paper):
+
+- As described in the paper, MMArt is constructed from **PPR10K**, Adobe Lightroom community assets, and licensed open-source collections.
+- In this repository, the currently public dataset releases are:
+  - [MMArt-PPR10K](https://huggingface.co/datasets/JarvisArt/MMArt-PPR10k)
+  - [MMArt-Bench](https://huggingface.co/datasets/JarvisArt/MMArt-Bench)
+- A full per-source breakdown list for every subset in Figure 9 is not yet published in this repository.
 
 ---
 
