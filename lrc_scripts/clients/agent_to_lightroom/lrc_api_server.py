@@ -6,6 +6,11 @@ from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
 import urllib.parse
+import cgi
+import io
+import shutil
+
+UPLOAD_ROOT = Path("/tmp/lightroom_uploads")
 
 class LightroomAPI:
     def __init__(self, host="127.0.0.1", port=7878):
@@ -183,19 +188,108 @@ def test_server_connection(api):
     return False
 
 class PhotoProcessHandler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        content_length = int(self.headers['Content-Length'])
-        post_data = self.rfile.read(content_length)
-        data = json.loads(post_data.decode('utf-8'))
-        
-        photo_path = data.get('photo_path')
-        xmp_path = data.get('xmp_path')
-        
-        if not photo_path or not xmp_path:
-            self.send_error(400, "Missing photo_path or xmp_path")
-            return
-            
+    @staticmethod
+    def parse_json_payload(raw_payload):
+        """Parse JSON body."""
+        if not raw_payload:
+            raise ValueError("Empty request body")
         try:
+            return json.loads(raw_payload.decode("utf-8"))
+        except UnicodeDecodeError as exc:
+            raise ValueError("JSON body must be UTF-8 encoded") from exc
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid JSON body: {exc.msg}") from exc
+
+    @staticmethod
+    def _safe_filename(name, fallback):
+        """Prevent path traversal in uploaded filenames."""
+        if not name:
+            return fallback
+        cleaned = Path(name).name
+        return cleaned or fallback
+
+    @staticmethod
+    def _get_form_part(form, *names):
+        for name in names:
+            if name in form:
+                part = form[name]
+                if isinstance(part, list):
+                    return part[0]
+                return part
+        return None
+
+    @classmethod
+    def parse_multipart_payload(cls, raw_payload, content_type, upload_root=UPLOAD_ROOT):
+        """Parse multipart body and store uploaded files."""
+        environ = {
+            "REQUEST_METHOD": "POST",
+            "CONTENT_TYPE": content_type,
+            "CONTENT_LENGTH": str(len(raw_payload)),
+        }
+        form = cgi.FieldStorage(
+            fp=io.BytesIO(raw_payload),
+            environ=environ,
+            keep_blank_values=True,
+        )
+
+        photo_part = cls._get_form_part(form, "photo_file")
+        preset_part = cls._get_form_part(form, "lua_file", "xmp_file")
+        if photo_part is None or preset_part is None:
+            raise ValueError("Missing photo_file or lua_file/xmp_file in multipart request")
+        if getattr(photo_part, "file", None) is None or getattr(preset_part, "file", None) is None:
+            raise ValueError("Invalid multipart upload payload")
+
+        task_id = form.getfirst("task_id") or f"task_{int(time.time())}"
+        upload_dir = Path(upload_root) / task_id
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        photo_filename = cls._safe_filename(
+            form.getfirst("photo_filename") or photo_part.filename,
+            "photo_upload",
+        )
+        preset_filename = cls._safe_filename(
+            form.getfirst("lua_filename")
+            or form.getfirst("xmp_filename")
+            or preset_part.filename,
+            "preset_upload.lua",
+        )
+
+        photo_path = upload_dir / photo_filename
+        preset_path = upload_dir / preset_filename
+
+        with open(photo_path, "wb") as photo_file:
+            shutil.copyfileobj(photo_part.file, photo_file)
+        with open(preset_path, "wb") as preset_file:
+            shutil.copyfileobj(preset_part.file, preset_file)
+
+        return {
+            "photo_path": str(photo_path),
+            "xmp_path": str(preset_path),
+            "task_id": task_id,
+        }
+
+    @staticmethod
+    def extract_photo_and_preset_paths(data):
+        photo_path = data.get("photo_path")
+        preset_path = data.get("xmp_path") or data.get("lua_path")
+        return photo_path, preset_path
+
+    def do_POST(self):
+        try:
+            content_type = self.headers.get("Content-Type", "").lower()
+            content_length = int(self.headers.get("Content-Length", "0"))
+            raw_payload = self.rfile.read(content_length)
+
+            if "multipart/form-data" in content_type:
+                data = self.parse_multipart_payload(raw_payload, self.headers.get("Content-Type", ""))
+            else:
+                data = self.parse_json_payload(raw_payload)
+
+            photo_path, preset_path = self.extract_photo_and_preset_paths(data)
+            if not photo_path or not preset_path:
+                self.send_error(400, "Missing photo_path or xmp_path/lua_path")
+                return
+
             # 为每个任务创建专用的输出目录 - Mac本地路径
             task_id = data.get('task_id', f"task_{int(time.time())}")
             import platform
@@ -204,7 +298,7 @@ class PhotoProcessHandler(BaseHTTPRequestHandler):
             else:
                 output_dir = f"/tmp/lightroom_processed/{task_id}"
             
-            result, output_path = self.server.lightroom_api.process_photo(photo_path, xmp_path, output_dir)
+            result, output_path = self.server.lightroom_api.process_photo(photo_path, preset_path, output_dir)
             if result:
                 response_data = {
                     "status": "success",
@@ -218,6 +312,8 @@ class PhotoProcessHandler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps(response_data).encode())
             else:
                 self.send_error(500, "Failed to process photo")
+        except ValueError as e:
+            self.send_error(400, str(e))
         except Exception as e:
             self.send_error(500, str(e))
 
